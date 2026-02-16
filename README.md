@@ -74,12 +74,6 @@ The application will start on `http://localhost:5000`
 npm start
 ```
 
-### Default Admin Account
-
-On first run, a default admin account is created:
-- **Email**: admin@test.com
-- **Password**: admin123
-
 **Note**: Change this password immediately after first login in production!
 
 ### Project Structure
