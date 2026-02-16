@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+  <title>
+    <%= title %>
+  </title>
+
+  <link rel="stylesheet" href="/css/main.css" />
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body>
+
+  <%- include('../partials/header', { user }) %>
+
+    <!-- ================= TIMER ================= -->
+    <div id="timer" class="timer">
+      Time Left:
+      <span id="time-display">
+        <%= test.duration || 0 %>:00
+      </span>
+    </div>
+
+
+    <!-- ================= MAIN ================= -->
+    <main class="container" style="padding-top: 2rem; padding-bottom: 2rem;">
+
+      <div class="space-y-6">
+
+        <!-- Header -->
+        <div>
+          <h1 class="text-2xl font-semibold text-slate-900">
+            <%= test.title %>
+          </h1>
+
+          <p class="mt-1 text-sm text-slate-500">
+            <%= (test.questions || []).length %> Questions • <%= test.duration || 0 %> Minutes
+          </p>
+        </div>
+
+
+        <!-- ================= QUESTIONS FORM ================= -->
+        <form id="test-form" class="space-y-6">
+
+          <% (test.questions || []).forEach(function(question, qIndex) { %>
+
+            <div class="card">
+
+              <div class="mb-3">
+                <span class="text-sm font-semibold text-slate-900">
+                  Question <%= qIndex + 1 %>
+                </span>
+
+                <p class="mt-1 text-sm text-slate-700">
+                  <%= question.question %>
+                </p>
+              </div>
+
+
+              <!-- OPTIONS -->
+              <div class="space-y-2">
+
+                <% (question.options || []).forEach(function(option) { %>
+
+                  <label class="flex items-center gap-2 cursor-pointer">
+                    <input type="radio" name="question-<%= qIndex %>" value="<%= option %>"
+                      style="accent-color:#f43f5e" />
+
+                    <span class="text-sm text-slate-700">
+                      <%= option %>
+                    </span>
+                  </label>
+
+                  <% }) %>
+
+              </div>
+
+            </div>
+
+            <% }) %>
+
+
+              <!-- Buttons -->
+              <div class="flex gap-4">
+                <button type="submit" class="btn-primary">
+                  Submit Test
+                </button>
+
+                <a href="/tests/<%= test._id %>" class="btn-primary" style="background:#64748b;">
+                  Cancel
+                </a>
+              </div>
+
+        </form>
+
+
+        <!-- ================= RESULTS ================= -->
+        <div id="results-section" class="hidden"></div>
+        <div id="questions-data" data-questions="<%= JSON.stringify(test.questions || []) %>"></div>
+      </div>
+
+    </main>
+
+
+    <%- include('../partials/footer') %>
+
+
+
+      <!-- ================= SCRIPT ================= -->
+      <script>
+        /* ================= SAFE DATA ================= */
+
+        const TEST_ID = "<%= test._id %>";
+
+        const DURATION_SECONDS = <%= test.duration || 0 %> * 60;
+
+        let QUESTIONS = [];
+        try {
+          const questionsDataEl = document.getElementById('questions-data');
+          if (questionsDataEl && questionsDataEl.dataset.questions) {
+            QUESTIONS = JSON.parse(questionsDataEl.dataset.questions);
+          }
+        } catch (err) {
+          console.error("Failed to parse questions data:", err);
+        }
+
+
+        let timeLeft = DURATION_SECONDS;
+        let timerInterval;
+
+        const form = document.getElementById('test-form');
+
+
+        /* ================= TIMER ================= */
+
+        function updateTimer() {
+          const minutes = Math.floor(timeLeft / 60);
+          const seconds = timeLeft % 60;
+
+          document.getElementById('time-display').textContent =
+            `${minutes}:${seconds.toString().padStart(2, '0')}`;
+
+          if (timeLeft <= 0) {
+            clearInterval(timerInterval);
+            submitTest();
+          }
+
+          timeLeft--;
+        }
+
+        timerInterval = setInterval(updateTimer, 1000);
+        updateTimer();
+
+
+        /* ================= FORM SUBMIT ================= */
+
+        form.addEventListener('submit', function (e) {
+          e.preventDefault();
+          submitTest();
+        });
+
+
+        async function submitTest() {
+          clearInterval(timerInterval);
+
+          const formData = new FormData(form);
+          const answers = [];
+
+          QUESTIONS.forEach((_, index) => {
+            answers.push(formData.get(`question-${index}`) || '');
+          });
+
+
+          try {
+            const response = await fetch('/api/results', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                testId: TEST_ID,
+                answers,
+                timeSpent: DURATION_SECONDS - timeLeft
+              })
+            });
+
+            if (!response.ok) throw new Error('Failed to submit');
+
+            const result = await response.json();
+            showResults(result);
+
+          } catch (err) {
+            alert('Failed to submit test: ' + err.message);
+          }
+        }
+
+
+        /* ================= SHOW RESULTS ================= */
+
+        function showResults(result) {
+
+          document.getElementById('timer').style.display = 'none';
+          form.style.display = 'none';
+
+          const resultsSection = document.getElementById('results-section');
+
+          resultsSection.classList.remove('hidden');
+
+          resultsSection.innerHTML = `
+        <div class="card">
+          <h2 class="text-2xl font-semibold mb-4">Test Completed!</h2>
+
+          <div class="grid gap-4 sm:grid-cols-3 mb-6">
+
+            <div>
+              <div class="text-xs text-slate-600">Score</div>
+              <div class="text-2xl font-bold text-rose-500">
+                \${result.score}/\${result.totalQuestions}
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs text-slate-600">Percentage</div>
+              <div class="text-2xl font-bold">
+                \${((result.score / result.totalQuestions) * 100).toFixed(1)}%
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs text-slate-600">Time Spent</div>
+              <div class="text-2xl font-bold">
+                \${Math.floor(result.timeSpent / 60)}m \${result.timeSpent % 60}s
+              </div>
+            </div>
+
+          </div>
+
+          <div class="flex gap-3">
+            <a href="/results" class="btn-primary">View Results</a>
+            <a href="/" class="btn-primary" style="background:#64748b;">Dashboard</a>
+          </div>
+        </div>
+      `;
+        }
+
+      </script>
+
+</body>
+
+</html>

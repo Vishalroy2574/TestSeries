@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        <%= title %>
+    </title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body>
+    <%- include('../partials/header', { user }) %>
+
+        <main class="container" style="padding-top: 4rem; padding-bottom: 4rem;">
+            <div class="space-y-12">
+                <!-- Hero Section -->
+                <div class="relative overflow-hidden rounded-3xl p-8 md:p-12 mb-8"
+                    style="background: linear-gradient(135deg, rgba(99, 102, 241, 0.1), rgba(244, 63, 94, 0.05)); border: 1px solid var(--border-soft);">
+                    <div class="relative z-10 max-w-2xl">
+                        <div
+                            class="inline-flex items-center rounded-full bg-white px-3 py-1 text-xs font-bold text-primary shadow-sm mb-4 border border-slate-100">
+                            🚀 Welcome to Test Series Hub
+                        </div>
+                        <h1 class="text-4xl md:text-5xl font-extrabold text-slate-900 tracking-tight leading-tight">
+                            Master Your Exams with <br />
+                            <span
+                                style="background: linear-gradient(135deg, #6366f1, #f43f5e); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Curated
+                                Test Series</span>
+                        </h1>
+                        <p class="mt-4 text-lg text-slate-500 max-w-lg">
+                            Hi <%= user ? user.name : 'there' %>, ready to level up? Choose your course below and access
+                                hundreds of
+                                practice questions designed by experts.
+                        </p>
+                    </div>
+                    <!-- Decorative background elements -->
+                    <div class="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-primary opacity-5 blur-3xl"></div>
+                    <div class="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-accent opacity-5 blur-3xl"></div>
+                </div>
+
+                <div class="grid gap-8 md:grid-cols-3">
+                    <% categories.forEach(function(cat, index) { %>
+                        <% if (!cat || !cat.key) return; %>
+                            <div class="card flex flex-col items-center text-center p-8 group">
+                                <div
+                                    class="mb-6 flex h-20 w-20 items-center justify-center rounded-2xl bg-slate-50 text-3xl group-hover:bg-primary group-hover:text-white transition-all duration-500">
+                                    <% if(cat.key==='FINAL' ) { %> 🎓 <% } else if(cat.key==='INTER' ) { %> 📚 <% } else
+                                                { %> 📝 <% } %>
+                                </div>
+                                <h2 class="text-xl font-bold text-slate-900 mb-2">
+                                    <%= cat.title %>
+                                </h2>
+                                <p class="text-sm text-slate-500 mb-6">
+                                    <%= cat.subtitle %>
+                                </p>
+                                <div class="mt-auto w-full">
+                                    <a href="/category/<%= cat.key %>"
+                                        class="btn-primary w-full shadow-none hover:shadow-lg">
+                                        Explore Course
+                                    </a>
+                                </div>
+                            </div>
+                            <% }) %>
+                </div>
+            </div>
+        </main>
+
+        <%- include('../partials/footer') %>
+</body>
+
+</html>

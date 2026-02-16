@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+        <%= title %>
+    </title>
+    <link rel="stylesheet" href="/css/main.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body style="overflow-x:hidden;">
+
+    <%- include('../partials/header', { user }) %>
+
+        <main class="container" style="padding:2rem 0;">
+            <div class="grid gap-6 lg:grid-cols-[1.3fr_1fr]">
+
+                <!-- ================= FORM ================= -->
+                <div class="space-y-4">
+                    <h1 class="text-2xl font-semibold">Admin Panel</h1>
+
+                    <form id="test-form" class="card space-y-4 p-4">
+
+                        <input type="hidden" id="edit-id" />
+
+                        <div>
+                            <label>Title</label>
+                            <input class="input" name="title" id="title" required />
+                        </div>
+
+                        <div>
+                            <label>Category</label>
+                            <select class="input" name="category" id="category">
+                                <option value="CA">CA Foundation</option>
+                                <option value="INTER">CA Inter</option>
+                                <option value="FINAL">CA Final</option>
+                            </select>
+                        </div>
+
+                        <div>
+                            <label>Duration</label>
+                            <input type="number" class="input" name="duration" id="duration" min="1" required />
+                        </div>
+
+                        <div>
+                            <label>Description</label>
+                            <textarea class="input" name="description" id="description"></textarea>
+                        </div>
+
+                        <div>
+                            <label>Test Type</label>
+                            <select class="input" name="type" id="test-type">
+                                <option value="FREE">FREE</option>
+                                <option value="PAID">PAID</option>
+                            </select>
+                        </div>
+
+                        <div id="price-field" style="display:none;">
+                            <label>Price (₹)</label>
+                            <input type="number" class="input" name="price" id="test-price" min="0" step="0.01" />
+                        </div>
+
+                        <div>
+                            <label>Attach Test PDF</label>
+                            <input type="file" id="pdf-file" accept="application/pdf" />
+                            <input type="hidden" id="pdfUrl" name="pdfUrl" />
+                            <input type="hidden" id="pdfPublicId" name="pdfPublicId" />
+                            <span id="pdf-status"></span>
+                        </div>
+
+                        <button type="submit" class="btn-primary" id="submit-btn">
+                            Create Test
+                        </button>
+
+                    </form>
+                </div>
+
+                <!-- ================= LIST ================= -->
+                <div>
+                    <h2 class="text-lg font-semibold">Existing Tests</h2>
+                    <div id="tests-list"></div>
+
+                    <div id="tests-data" data-tests="<%= JSON.stringify(tests || []) %>"></div>
+                </div>
+
+            </div>
+        </main>
+
+        <%- include('../partials/footer') %>
+
+            <script>
+                let tests = [];
+                let editingId = null;
+                let isUploading = false;
+
+                // Cache elements
+                const form = document.getElementById('test-form');
+                const titleInput = document.getElementById('title');
+                const categoryInput = document.getElementById('category');
+                const durationInput = document.getElementById('duration');
+                const descriptionInput = document.getElementById('description');
+                const typeSelect = document.getElementById('test-type');
+                const priceField = document.getElementById('price-field');
+                const priceInput = document.getElementById('test-price');
+                const pdfUrlInput = document.getElementById('pdfUrl');
+                const pdfPublicIdInput = document.getElementById('pdfPublicId');
+                const pdfStatusSpan = document.getElementById('pdf-status');
+                const submitBtn = document.getElementById('submit-btn');
+
+                try {
+                    const el = document.getElementById('tests-data');
+                    if (el && el.dataset.tests) {
+                        tests = JSON.parse(el.dataset.tests);
+                    }
+                } catch (e) { console.error("Failed to parse tests data:", e); }
+
+                /* TYPE CHANGE */
+                typeSelect.addEventListener('change', e => {
+                    if (e.target.value === 'PAID') {
+                        priceField.style.display = 'block';
+                        priceInput.required = true;
+                    } else {
+                        priceField.style.display = 'none';
+                        priceInput.required = false;
+                        priceInput.value = '';
+                    }
+                });
+
+                /* PDF UPLOAD */
+                document.getElementById('pdf-file').addEventListener('change', async e => {
+                    const file = e.target.files[0];
+                    if (!file) return;
+
+                    if (file.type !== "application/pdf") {
+                        alert("Only PDF allowed"); return;
+                    }
+                    if (file.size > 10 * 1024 * 1024) {
+                        alert("Max 10MB"); return;
+                    }
+
+                    isUploading = true;
+                    pdfStatusSpan.innerText = "Uploading... ⏳";
+                    submitBtn.disabled = true;
+
+                    const fd = new FormData();
+                    fd.append('file', file);
+
+                    try {
+                        const res = await fetch('/api/uploads/pdf', { method: 'POST', credentials: 'include', body: fd });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error();
+
+                        pdfUrlInput.value = data.url;
+                        pdfPublicIdInput.value = data.public_id;
+                        pdfStatusSpan.innerHTML = `Uploaded ✔ <a href="${data.url}" target="_blank" style="color: blue; text-decoration: underline;">Preview</a>`;
+                    } catch {
+                        pdfStatusSpan.innerText = "Upload failed ❌";
+                    } finally {
+                        isUploading = false;
+                        submitBtn.disabled = false;
+                    }
+                });
+
+                /* FORM SUBMIT */
+                form.addEventListener('submit', async e => {
+                    e.preventDefault();
+
+                    if (isUploading) { alert("Wait for upload"); return; }
+
+                    const fd = new FormData(form);
+                    const pdfUrl = fd.get('pdfUrl');
+
+                    if (!pdfUrl && !editingId) {
+                        alert("Please upload a PDF file first."); return;
+                    }
+
+                    const type = fd.get('type');
+                    const price = fd.get('price');
+
+                    if (type === 'PAID' && (!price || price <= 0)) {
+                        alert("Please enter a valid price for PAID tests."); return;
+                    }
+
+                    const payload = {
+                        title: fd.get('title'),
+                        category: fd.get('category'),
+                        duration: Number(fd.get('duration')),
+                        description: fd.get('description'),
+                        pdfUrl: pdfUrl,
+                        pdfPublicId: fd.get('pdfPublicId'),
+                        type,
+                        price: type === 'PAID' ? Number(price) : undefined
+                    };
+
+                    submitBtn.disabled = true;
+                    submitBtn.innerText = editingId ? "Updating..." : "Creating...";
+
+                    try {
+                        let res;
+                        if (editingId) {
+                            res = await fetch(`/api/tests/${editingId}`, {
+                                method: 'PUT',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                        } else {
+                            res = await fetch('/api/tests', {
+                                method: 'POST',
+                                credentials: 'include',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify(payload)
+                            });
+                        }
+
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.message || "Operation failed");
+
+                        if (editingId) {
+                            const index = tests.findIndex(t => t._id === editingId);
+                            if (index !== -1) tests[index] = data;
+                            alert("Test updated successfully!");
+                        } else {
+                            tests.unshift(data);
+                            alert("Test created successfully!");
+                        }
+
+                        resetForm();
+                        renderTests();
+
+                    } catch (err) {
+                        console.error(err);
+                        alert(err.message);
+                    } finally {
+                        submitBtn.disabled = false;
+                        submitBtn.innerText = "Create Test";
+                    }
+                });
+
+                /* EDIT */
+                window.editTest = function (id) {
+                    const t = tests.find(x => x._id === id);
+                    if (!t) return;
+
+                    editingId = id;
+
+                    titleInput.value = t.title;
+                    categoryInput.value = t.category;
+                    durationInput.value = t.duration;
+                    descriptionInput.value = t.description;
+                    typeSelect.value = t.type || "FREE";
+
+                    if (t.type === 'PAID') {
+                        priceField.style.display = 'block';
+                        priceInput.value = t.price || "";
+                        priceInput.required = true;
+                    } else {
+                        priceField.style.display = 'none';
+                        priceInput.value = "";
+                        priceInput.required = false;
+                    }
+
+                    pdfUrlInput.value = t.pdfUrl;
+                    pdfPublicIdInput.value = t.pdfPublicId;
+                    pdfStatusSpan.innerHTML = `Current PDF <a href="${t.pdfUrl}" target="_blank" style="color: blue; text-decoration: underline;">View</a>`;
+
+                    submitBtn.innerText = "Update Test";
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+
+                /* DELETE */
+                window.deleteTest = async function (id) {
+                    if (!confirm("Are you sure you want to delete this test?")) return;
+                    try {
+                        const res = await fetch(`/api/tests/${id}`, { method: 'DELETE', credentials: 'include' });
+                        if (!res.ok) throw new Error("Delete failed");
+                        tests = tests.filter(t => t._id !== id);
+                        renderTests();
+                    } catch (err) {
+                        alert(err.message);
+                    }
+                }
+
+                /* RESET FORM */
+                function resetForm() {
+                    editingId = null;
+                    form.reset();
+                    priceField.style.display = 'none';
+                    pdfStatusSpan.innerText = '';
+                    pdfUrlInput.value = '';
+                    pdfPublicIdInput.value = '';
+                    submitBtn.innerText = "Create Test";
+                }
+
+                /* RENDER */
+                function renderTests() {
+                    const c = document.getElementById('tests-list');
+                    if (!tests.length) { c.innerHTML = "No tests"; return; }
+
+                    c.innerHTML = tests.map(t => `
+<div style="padding:.6rem;border:1px solid #e2e8f0;border-radius:.5rem;margin-bottom:.5rem;">
+<strong>${t.title}</strong> (${t.category})<br>
+<span style="font-size:12px;color:#64748b;">
+Type: ${t.type}
+${t.type === 'PAID' ? ` | ₹${t.price}` : ''}
+</span><br>
+<button onclick="editTest('${t._id}')">Edit</button>
+<button onclick="deleteTest('${t._id}')"
+style="background:#ef4444;color:#fff;margin-left:5px;">Delete</button>
+</div>
+`).join('');
+                }
+
+                renderTests();
+            </script>
+</body>
+
+</html>

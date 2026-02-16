@@ -1,0 +1,74 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        <%= title %>
+    </title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body>
+    <div class="auth-container">
+        <!-- Decorative Blurs -->
+        <div class="auth-blur-1"></div>
+        <div class="auth-blur-2"></div>
+
+        <div class="auth-card">
+            <div class="text-center mb-8">
+                <a href="/" class="header-title block mb-2" style="font-size: 1.75rem;">Test Series Hub</a>
+                <p class="text-sm text-slate-500">
+                    Create your free account today
+                </p>
+            </div>
+
+            <% if (error) { %>
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle mr-2"></i>
+                    <%= error %>
+                </div>
+                <% } %>
+
+                    <form action="/api/auth/register" method="POST" class="space-y-6">
+                        <div>
+                            <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                Full Name
+                            </label>
+                            <input type="text" name="name" class="input" placeholder="John Doe" required />
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                Email Address
+                            </label>
+                            <input type="email" name="email" class="input" placeholder="you@example.com" required
+                                pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please enter a valid email address" />
+                        </div>
+
+                        <div>
+                            <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                Create Password
+                            </label>
+                            <input type="password" name="password" class="input" placeholder="Minimum 6 characters"
+                                required minlength="6" />
+                        </div>
+
+                        <button type="submit" class="btn-primary w-full py-3">
+                            Claim My Account <i class="fas fa-arrow-right ml-2 text-xs"></i>
+                        </button>
+                    </form>
+
+                    <p class="mt-8 text-center text-sm text-slate-500">
+                        Already have an account?
+                        <a href="/login" class="font-bold text-primary hover:text-primary-hover transition-colors">
+                            Sign In
+                        </a>
+                    </p>
+        </div>
+    </div>
+</body>
+
+</html>

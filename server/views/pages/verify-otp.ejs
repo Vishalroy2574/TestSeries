@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>
+        <%= title %>
+    </title>
+    <link rel="stylesheet" href="/css/main.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        .otp-input {
+            font-size: 24px;
+            letter-spacing: 10px;
+            text-align: center;
+            font-weight: bold;
+            padding: 16px;
+        }
+
+        .resend-container {
+            margin-top: 20px;
+            text-align: center;
+        }
+
+        .resend-btn {
+            background: transparent;
+            border: none;
+            color: #f43f5e;
+            cursor: pointer;
+            font-size: 14px;
+            text-decoration: underline;
+            padding: 8px;
+        }
+
+        .resend-btn:hover:not(:disabled) {
+            color: #e11d48;
+        }
+
+        .resend-btn:disabled {
+            color: #94a3b8;
+            cursor: not-allowed;
+            text-decoration: none;
+        }
+
+        .timer {
+            color: #94a3b8;
+            font-size: 12px;
+            margin-top: 8px;
+        }
+
+        .success-message {
+            background-color: #d1fae5;
+            border-left: 4px solid #10b981;
+            color: #065f46;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .info-box {
+            background-color: #dbeafe;
+            border-left: 4px solid #3b82f6;
+            color: #1e3a8a;
+            padding: 12px 16px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="auth-container">
+        <!-- Decorative Blurs -->
+        <div class="auth-blur-1"></div>
+        <div class="auth-blur-2"></div>
+
+        <div class="auth-card">
+            <div class="text-center mb-8">
+                <a href="/" class="header-title block mb-2" style="font-size: 1.75rem;">Test Series Hub</a>
+                <p class="text-sm text-slate-500">
+                    Verify your email address
+                </p>
+            </div>
+
+            <% if (error) { %>
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle mr-2"></i>
+                    <%= error %>
+                </div>
+                <% } %>
+
+                    <% if (success) { %>
+                        <div class="success-message"
+                            style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--success); padding: 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; margin-bottom: 1.5rem; text-align: center; font-weight: 500;">
+                            <i class="fas fa-check-circle mr-2"></i>
+                            <%= success %>
+                        </div>
+                        <% } %>
+
+                            <div class="info-box"
+                                style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); color: #1e40af; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1.5rem; font-size: 0.875rem; text-align: center;">
+                                <i class="fas fa-envelope-open-text mb-2 block text-2xl text-primary opacity-50"></i>
+                                <span>Check your email! We've sent a 6-digit code to <br><strong>
+                                        <%= email %>
+                                    </strong></span>
+                            </div>
+
+                            <form action="/api/auth/verify-otp" method="POST" class="space-y-6" id="otpForm">
+                                <div>
+                                    <label
+                                        class="mb-3 block text-xs font-bold text-slate-400 uppercase tracking-widest text-center">
+                                        Enter 6-Digit Code
+                                    </label>
+                                    <input type="text" name="otp" id="otpInput" class="input otp-input"
+                                        placeholder="000000" required maxlength="6" pattern="[0-9]{6}"
+                                        inputmode="numeric" autocomplete="one-time-code" autofocus
+                                        style="font-size: 2rem; letter-spacing: 0.5rem; text-align: center; font-weight: 800; border-radius: 1rem; padding: 1rem 0.5rem;" />
+                                    <p class="mt-2 text-center text-[10px] text-slate-400 uppercase tracking-widest">
+                                        OTP expires in 10 minutes
+                                    </p>
+                                </div>
+
+                                <button type="submit" class="btn-primary w-full py-3" id="verifyBtn">
+                                    Verify & Continue <i class="fas fa-arrow-right ml-2 text-xs"></i>
+                                </button>
+                            </form>
+
+                            <div
+                                class="resend-container mt-8 pt-6 border-t border-slate-100 flex flex-col items-center">
+                                <button type="button"
+                                    class="resend-btn font-bold text-primary hover:text-primary-hover transition-colors no-underline"
+                                    id="resendBtn" onclick="resendOTP()">
+                                    Resend Code
+                                </button>
+                                <div class="timer mt-2" id="timer"></div>
+                            </div>
+
+                            <p class="mt-8 text-center text-sm text-slate-500">
+                                Wrong email?
+                                <a href="/register"
+                                    class="font-bold text-slate-900 border-b border-slate-900 hover:text-primary hover:border-primary transition">
+                                    Register again
+                                </a>
+                            </p>
+        </div>
+    </div>
+
+    <script>
+        // Auto-format OTP input to only accept numbers
+        const otpInput = document.getElementById('otpInput');
+        otpInput.addEventListener('input', function (e) {
+            this.value = this.value.replace(/[^0-9]/g, '');
+        });
+
+        // Resend OTP functionality with cooldown
+        let cooldownTime = 0;
+        let cooldownInterval = null;
+
+        function updateTimer() {
+            const timerEl = document.getElementById('timer');
+            const resendBtn = document.getElementById('resendBtn');
+
+            if (cooldownTime > 0) {
+                timerEl.textContent = `Resend available in ${cooldownTime}s`;
+                resendBtn.disabled = true;
+                cooldownTime--;
+            } else {
+                timerEl.textContent = '';
+                resendBtn.disabled = false;
+                if (cooldownInterval) {
+                    clearInterval(cooldownInterval);
+                    cooldownInterval = null;
+                }
+            }
+        }
+
+        function startCooldown() {
+            cooldownTime = 60; // 60 seconds cooldown
+            updateTimer();
+            cooldownInterval = setInterval(updateTimer, 1000);
+        }
+
+        async function resendOTP() {
+            const resendBtn = document.getElementById('resendBtn');
+            const timerEl = document.getElementById('timer');
+
+            resendBtn.disabled = true;
+            timerEl.textContent = 'Sending...';
+
+            try {
+                const response = await fetch('/api/auth/resend-otp', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    // Show success message
+                    const errorDiv = document.querySelector('.error-message');
+                    if (errorDiv) {
+                        errorDiv.className = 'success-message';
+                        errorDiv.textContent = data.message;
+                    } else {
+                        const successDiv = document.createElement('div');
+                        successDiv.className = 'success-message';
+                        successDiv.textContent = data.message;
+                        document.querySelector('.info-box').insertAdjacentElement('beforebegin', successDiv);
+                    }
+
+                    // Start cooldown
+                    startCooldown();
+                } else {
+                    // Show error message
+                    const successDiv = document.querySelector('.success-message');
+                    if (successDiv) {
+                        successDiv.className = 'error-message';
+                        successDiv.textContent = data.message;
+                    } else {
+                        const errorDiv = document.createElement('div');
+                        errorDiv.className = 'error-message';
+                        errorDiv.textContent = data.message;
+                        document.querySelector('.info-box').insertAdjacentElement('beforebegin', errorDiv);
+                    }
+
+                    resendBtn.disabled = false;
+                    timerEl.textContent = '';
+                }
+            } catch (error) {
+                console.error('Error resending OTP:', error);
+                timerEl.textContent = 'Failed to resend. Please try again.';
+                resendBtn.disabled = false;
+            }
+        }
+
+        // Form submission handling
+        document.getElementById('otpForm').addEventListener('submit', function (e) {
+            const verifyBtn = document.getElementById('verifyBtn');
+            verifyBtn.disabled = true;
+            verifyBtn.textContent = 'Verifying...';
+        });
+    </script>
+</body>
+
+</html>
