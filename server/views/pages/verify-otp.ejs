@@ -4,33 +4,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Verify your Test Series Hub account with the OTP sent to your email.">
     <title>
         <%= title %>
     </title>
     <link rel="stylesheet" href="/css/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
-        .otp-input {
-            font-size: 24px;
-            letter-spacing: 10px;
-            text-align: center;
-            font-weight: bold;
-            padding: 16px;
+        /* ── OTP digit boxes ── */
+        .otp-boxes {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin: 8px 0;
         }
 
-        .resend-container {
-            margin-top: 20px;
+        .otp-box-input {
+            width: 48px;
+            height: 58px;
             text-align: center;
+            font-size: 1.6rem;
+            font-weight: 800;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.04);
+            color: inherit;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s, transform 0.15s;
+            caret-color: transparent;
         }
 
+        .otp-box-input:focus {
+            border-color: var(--primary, #f43f5e);
+            box-shadow: 0 0 0 3px rgba(244, 63, 94, 0.15);
+            transform: scale(1.05);
+        }
+
+        .otp-box-input.filled {
+            border-color: #94a3b8;
+        }
+
+        .otp-box-input.error-field {
+            border-color: #f43f5e;
+            animation: shake 0.4s ease;
+        }
+
+        @keyframes shake {
+
+            0%,
+            100% {
+                transform: translateX(0);
+            }
+
+            25% {
+                transform: translateX(-4px);
+            }
+
+            75% {
+                transform: translateX(4px);
+            }
+        }
+
+        /* ── Resend ── */
         .resend-btn {
             background: transparent;
             border: none;
             color: #f43f5e;
             cursor: pointer;
             font-size: 14px;
-            text-decoration: underline;
+            font-weight: 700;
             padding: 8px;
+            text-decoration: underline;
+            transition: color 0.2s;
         }
 
         .resend-btn:hover:not(:disabled) {
@@ -43,30 +88,100 @@
             text-decoration: none;
         }
 
-        .timer {
+        .timer-text {
             color: #94a3b8;
             font-size: 12px;
+            margin-top: 6px;
+        }
+
+        /* ── Attempt indicator ── */
+        .attempt-dots {
+            display: flex;
+            gap: 6px;
+            justify-content: center;
             margin-top: 8px;
         }
 
-        .success-message {
-            background-color: #d1fae5;
-            border-left: 4px solid #10b981;
+        .attempt-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #e2e8f0;
+            transition: background 0.3s;
+        }
+
+        .attempt-dot.used {
+            background: #f43f5e;
+        }
+
+        .attempt-dot.safe {
+            background: #10b981;
+        }
+
+        /* ── Expiry countdown ── */
+        .expiry-bar-wrap {
+            background: #e2e8f0;
+            border-radius: 4px;
+            height: 4px;
+            margin: 12px 0 4px;
+            overflow: hidden;
+        }
+
+        .expiry-bar-fill {
+            height: 100%;
+            border-radius: 4px;
+            background: #10b981;
+            width: 100%;
+            transition: width 1s linear, background 1s;
+        }
+
+        .expiry-text {
+            font-size: 11px;
+            color: #94a3b8;
+            text-align: center;
+            letter-spacing: 0.04em;
+        }
+
+        /* ── Success / info / error boxes ── */
+        .success-box {
+            background: rgba(16, 185, 129, 0.07);
+            border: 1px solid rgba(16, 185, 129, 0.25);
             color: #065f46;
             padding: 12px 16px;
-            border-radius: 4px;
-            margin-bottom: 20px;
+            border-radius: 10px;
+            margin-bottom: 16px;
             font-size: 14px;
+            text-align: center;
         }
 
         .info-box {
-            background-color: #dbeafe;
-            border-left: 4px solid #3b82f6;
-            color: #1e3a8a;
-            padding: 12px 16px;
-            border-radius: 4px;
+            background: rgba(59, 130, 246, 0.06);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            color: #1e40af;
+            padding: 14px 16px;
+            border-radius: 10px;
             margin-bottom: 20px;
             font-size: 14px;
+            text-align: center;
+        }
+
+        /* ── Loading spinner ── */
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
         }
     </style>
 </head>
@@ -80,65 +195,100 @@
         <div class="auth-card">
             <div class="text-center mb-8">
                 <a href="/" class="header-title block mb-2" style="font-size: 1.75rem;">Test Series Hub</a>
-                <p class="text-sm text-slate-500">
-                    Verify your email address
-                </p>
+                <p class="text-sm text-slate-500">Verify your email address</p>
             </div>
 
+            <!-- Error (server-side) -->
             <% if (error) { %>
-                <div class="error-message">
+                <div class="error-message" id="serverMsg">
                     <i class="fas fa-exclamation-circle mr-2"></i>
                     <%= error %>
                 </div>
                 <% } %>
 
+                    <!-- Success (e.g. OTP resent) -->
                     <% if (success) { %>
-                        <div class="success-message"
-                            style="background: rgba(16, 185, 129, 0.05); border: 1px solid rgba(16, 185, 129, 0.2); color: var(--success); padding: 0.75rem; border-radius: 0.75rem; font-size: 0.875rem; margin-bottom: 1.5rem; text-align: center; font-weight: 500;">
+                        <div class="success-box" id="serverMsg">
                             <i class="fas fa-check-circle mr-2"></i>
                             <%= success %>
                         </div>
                         <% } %>
 
-                            <div class="info-box"
-                                style="background: rgba(59, 130, 246, 0.05); border: 1px solid rgba(59, 130, 246, 0.2); color: #1e40af; padding: 1rem; border-radius: 0.75rem; margin-bottom: 1.5rem; font-size: 0.875rem; text-align: center;">
-                                <i class="fas fa-envelope-open-text mb-2 block text-2xl text-primary opacity-50"></i>
-                                <span>Check your email! We've sent a 6-digit code to <br><strong>
-                                        <%= email %>
-                                    </strong></span>
+                            <!-- Info banner -->
+                            <div class="info-box">
+                                <i class="fas fa-envelope-open-text mb-2 block text-2xl opacity-40"></i>
+                                We sent a 6-digit code to<br>
+                                <strong>
+                                    <%= email %>
+                                </strong>
                             </div>
 
-                            <form action="/api/auth/verify-otp" method="POST" class="space-y-6" id="otpForm">
-                                <div>
-                                    <label
-                                        class="mb-3 block text-xs font-bold text-slate-400 uppercase tracking-widest text-center">
-                                        Enter 6-Digit Code
-                                    </label>
-                                    <input type="text" name="otp" id="otpInput" class="input otp-input"
-                                        placeholder="000000" required maxlength="6" pattern="[0-9]{6}"
-                                        inputmode="numeric" autocomplete="one-time-code" autofocus
-                                        style="font-size: 2rem; letter-spacing: 0.5rem; text-align: center; font-weight: 800; border-radius: 1rem; padding: 1rem 0.5rem;" />
-                                    <p class="mt-2 text-center text-[10px] text-slate-400 uppercase tracking-widest">
-                                        OTP expires in 10 minutes
-                                    </p>
-                                </div>
+                            <!-- OTP Form -->
+                            <form action="/api/auth/verify-otp" method="POST" id="otpForm" novalidate>
+                                <!-- Hidden aggregator -->
+                                <input type="hidden" name="otp" id="otpHidden" />
+                                <% if (locals.returnTo || (typeof req !=='undefined' && req.query.returnTo)) { %>
+                                    <input type="hidden" name="returnTo"
+                                        value="<%= locals.returnTo || req.query.returnTo %>">
+                                    <% } %>
 
-                                <button type="submit" class="btn-primary w-full py-3" id="verifyBtn">
-                                    Verify & Continue <i class="fas fa-arrow-right ml-2 text-xs"></i>
-                                </button>
+                                        <label
+                                            class="mb-3 block text-xs font-bold text-slate-400 uppercase tracking-widest text-center">
+                                            Enter 6-Digit Code
+                                        </label>
+
+                                        <!-- Individual digit boxes -->
+                                        <div class="otp-boxes" id="otpBoxes">
+                                            <input class="otp-box-input" type="text" maxlength="1" inputmode="numeric"
+                                                autocomplete="one-time-code" id="d0" data-index="0">
+                                            <input class="otp-box-input" type="text" maxlength="1" inputmode="numeric"
+                                                id="d1" data-index="1">
+                                            <input class="otp-box-input" type="text" maxlength="1" inputmode="numeric"
+                                                id="d2" data-index="2">
+                                            <input class="otp-box-input" type="text" maxlength="1" inputmode="numeric"
+                                                id="d3" data-index="3">
+                                            <input class="otp-box-input" type="text" maxlength="1" inputmode="numeric"
+                                                id="d4" data-index="4">
+                                            <input class="otp-box-input" type="text" maxlength="1" inputmode="numeric"
+                                                id="d5" data-index="5">
+                                        </div>
+
+                                        <!-- Expiry countdown bar -->
+                                        <div class="expiry-bar-wrap">
+                                            <div class="expiry-bar-fill" id="expiryBar"></div>
+                                        </div>
+                                        <p class="expiry-text" id="expiryText">OTP expires in <strong
+                                                id="expiryCount">10:00</strong></p>
+
+                                        <!-- Attempt dots (5 max) -->
+                                        <div class="attempt-dots" id="attemptDots">
+                                            <div class="attempt-dot safe" id="dot0"></div>
+                                            <div class="attempt-dot safe" id="dot1"></div>
+                                            <div class="attempt-dot safe" id="dot2"></div>
+                                            <div class="attempt-dot safe" id="dot3"></div>
+                                            <div class="attempt-dot safe" id="dot4"></div>
+                                        </div>
+                                        <p class="text-center mt-1"
+                                            style="font-size:10px; color:#94a3b8; letter-spacing:0.05em;">ATTEMPTS
+                                            REMAINING</p>
+
+                                        <button type="submit" class="btn-primary w-full py-3 mt-6" id="verifyBtn"
+                                            disabled>
+                                            <span id="btnContent">
+                                                Verify &amp; Continue <i class="fas fa-arrow-right ml-1 text-xs"></i>
+                                            </span>
+                                        </button>
                             </form>
 
-                            <div
-                                class="resend-container mt-8 pt-6 border-t border-slate-100 flex flex-col items-center">
-                                <button type="button"
-                                    class="resend-btn font-bold text-primary hover:text-primary-hover transition-colors no-underline"
-                                    id="resendBtn" onclick="resendOTP()">
+                            <!-- Resend section -->
+                            <div class="mt-8 pt-6 border-t border-slate-100 flex flex-col items-center">
+                                <button type="button" class="resend-btn" id="resendBtn" onclick="resendOTP()">
                                     Resend Code
                                 </button>
-                                <div class="timer mt-2" id="timer"></div>
+                                <p class="timer-text" id="timerText"></p>
                             </div>
 
-                            <p class="mt-8 text-center text-sm text-slate-500">
+                            <p class="mt-6 text-center text-sm text-slate-500">
                                 Wrong email?
                                 <a href="/register"
                                     class="font-bold text-slate-900 border-b border-slate-900 hover:text-primary hover:border-primary transition">
@@ -149,101 +299,246 @@
     </div>
 
     <script>
-        // Auto-format OTP input to only accept numbers
-        const otpInput = document.getElementById('otpInput');
-        otpInput.addEventListener('input', function (e) {
-            this.value = this.value.replace(/[^0-9]/g, '');
+        /* ─────────────────────────────────────────────────
+           OTP Digit Box Logic
+        ───────────────────────────────────────────────── */
+        const boxes = Array.from(document.querySelectorAll('.otp-box-input'));
+        const hiddenInput = document.getElementById('otpHidden');
+        const verifyBtn = document.getElementById('verifyBtn');
+        let failedAttempts = 0;
+        const MAX_ATTEMPTS = 5;
+
+        function syncHidden() {
+            const val = boxes.map(b => b.value).join('');
+            hiddenInput.value = val;
+            verifyBtn.disabled = val.length < 6;
+        }
+
+        boxes.forEach((box, i) => {
+            box.addEventListener('input', function (e) {
+                // Allow only digits
+                this.value = this.value.replace(/[^0-9]/g, '').slice(-1);
+
+                if (this.value) {
+                    this.classList.add('filled');
+                    this.classList.remove('error-field');
+                    if (i < 5) boxes[i + 1].focus();
+                } else {
+                    this.classList.remove('filled');
+                }
+
+                syncHidden();
+            });
+
+            box.addEventListener('keydown', function (e) {
+                if (e.key === 'Backspace' && !this.value && i > 0) {
+                    boxes[i - 1].focus();
+                    boxes[i - 1].value = '';
+                    boxes[i - 1].classList.remove('filled');
+                    syncHidden();
+                }
+                // Arrow navigation
+                if (e.key === 'ArrowLeft' && i > 0) boxes[i - 1].focus();
+                if (e.key === 'ArrowRight' && i < 5) boxes[i + 1].focus();
+            });
+
+            box.addEventListener('paste', function (e) {
+                e.preventDefault();
+                const pasted = (e.clipboardData || window.clipboardData)
+                    .getData('text').replace(/[^0-9]/g, '').slice(0, 6);
+                pasted.split('').forEach((ch, j) => {
+                    if (boxes[j]) {
+                        boxes[j].value = ch;
+                        boxes[j].classList.add('filled');
+                    }
+                });
+                if (boxes[pasted.length - 1]) boxes[pasted.length - 1].focus();
+                syncHidden();
+            });
         });
 
-        // Resend OTP functionality with cooldown
-        let cooldownTime = 0;
-        let cooldownInterval = null;
+        // Focus first box on load
+        boxes[0].focus();
 
-        function updateTimer() {
-            const timerEl = document.getElementById('timer');
-            const resendBtn = document.getElementById('resendBtn');
-
-            if (cooldownTime > 0) {
-                timerEl.textContent = `Resend available in ${cooldownTime}s`;
-                resendBtn.disabled = true;
-                cooldownTime--;
-            } else {
-                timerEl.textContent = '';
-                resendBtn.disabled = false;
-                if (cooldownInterval) {
-                    clearInterval(cooldownInterval);
-                    cooldownInterval = null;
+        /* ─────────────────────────────────────────────────
+           Attempt Dot Indicators
+        ───────────────────────────────────────────────── */
+        function updateAttemptDots(used) {
+            for (let i = 0; i < MAX_ATTEMPTS; i++) {
+                const dot = document.getElementById('dot' + i);
+                if (i < used) {
+                    dot.classList.remove('safe');
+                    dot.classList.add('used');
+                } else {
+                    dot.classList.add('safe');
+                    dot.classList.remove('used');
                 }
             }
         }
 
-        function startCooldown() {
-            cooldownTime = 60; // 60 seconds cooldown
-            updateTimer();
-            cooldownInterval = setInterval(updateTimer, 1000);
+        /* ─────────────────────────────────────────────────
+           OTP Expiry Countdown (10 minutes)
+        ───────────────────────────────────────────────── */
+        const TOTAL_SECONDS = 10 * 60;
+        let secondsLeft = TOTAL_SECONDS;
+
+        function updateExpiry() {
+            const bar = document.getElementById('expiryBar');
+            const countEl = document.getElementById('expiryCount');
+            const pct = (secondsLeft / TOTAL_SECONDS) * 100;
+
+            bar.style.width = pct + '%';
+
+            // Color transition: green → yellow → red
+            if (pct > 50) bar.style.background = '#10b981';
+            else if (pct > 25) bar.style.background = '#eab308';
+            else bar.style.background = '#ef4444';
+
+            const m = Math.floor(secondsLeft / 60);
+            const s = secondsLeft % 60;
+            countEl.textContent = `${m}:${s.toString().padStart(2, '0')}`;
+
+            if (secondsLeft <= 0) {
+                clearInterval(expiryInterval);
+                countEl.textContent = 'Expired';
+                countEl.style.color = '#ef4444';
+                verifyBtn.disabled = true;
+                verifyBtn.style.opacity = '0.5';
+
+                // Show a message
+                showClientMsg('OTP has expired. Please click "Resend Code" to get a new one.', 'error');
+            }
+            secondsLeft--;
+        }
+
+        const expiryInterval = setInterval(updateExpiry, 1000);
+        updateExpiry();
+
+        /* ─────────────────────────────────────────────────
+           Resend OTP + cooldown timer
+        ───────────────────────────────────────────────── */
+        let cooldownSeconds = 0;
+        let cooldownInterval = null;
+
+        function startCooldown(seconds = 60) {
+            cooldownSeconds = seconds;
+            const resendBtn = document.getElementById('resendBtn');
+            const timerText = document.getElementById('timerText');
+            resendBtn.disabled = true;
+
+            cooldownInterval = setInterval(() => {
+                if (cooldownSeconds <= 0) {
+                    clearInterval(cooldownInterval);
+                    resendBtn.disabled = false;
+                    timerText.textContent = '';
+                } else {
+                    timerText.textContent = `Resend available in ${cooldownSeconds}s`;
+                    cooldownSeconds--;
+                }
+            }, 1000);
         }
 
         async function resendOTP() {
             const resendBtn = document.getElementById('resendBtn');
-            const timerEl = document.getElementById('timer');
+            const timerText = document.getElementById('timerText');
 
             resendBtn.disabled = true;
-            timerEl.textContent = 'Sending...';
+            timerText.textContent = 'Sending…';
 
             try {
-                const response = await fetch('/api/auth/resend-otp', {
+                const res = await fetch('/api/auth/resend-otp', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
+                    headers: { 'Content-Type': 'application/json' },
                 });
+                const data = await res.json();
 
-                const data = await response.json();
-
-                if (response.ok) {
-                    // Show success message
-                    const errorDiv = document.querySelector('.error-message');
-                    if (errorDiv) {
-                        errorDiv.className = 'success-message';
-                        errorDiv.textContent = data.message;
-                    } else {
-                        const successDiv = document.createElement('div');
-                        successDiv.className = 'success-message';
-                        successDiv.textContent = data.message;
-                        document.querySelector('.info-box').insertAdjacentElement('beforebegin', successDiv);
-                    }
-
-                    // Start cooldown
-                    startCooldown();
+                if (res.ok) {
+                    showClientMsg(data.message, 'success');
+                    // Reset attempt dots and expiry bar on resend
+                    failedAttempts = 0;
+                    updateAttemptDots(0);
+                    secondsLeft = TOTAL_SECONDS;
+                    startCooldown(60);
                 } else {
-                    // Show error message
-                    const successDiv = document.querySelector('.success-message');
-                    if (successDiv) {
-                        successDiv.className = 'error-message';
-                        successDiv.textContent = data.message;
-                    } else {
-                        const errorDiv = document.createElement('div');
-                        errorDiv.className = 'error-message';
-                        errorDiv.textContent = data.message;
-                        document.querySelector('.info-box').insertAdjacentElement('beforebegin', errorDiv);
-                    }
-
+                    showClientMsg(data.message, 'error');
+                    timerText.textContent = '';
                     resendBtn.disabled = false;
-                    timerEl.textContent = '';
                 }
-            } catch (error) {
-                console.error('Error resending OTP:', error);
-                timerEl.textContent = 'Failed to resend. Please try again.';
+            } catch (err) {
+                showClientMsg('Failed to resend. Please try again.', 'error');
+                timerText.textContent = '';
                 resendBtn.disabled = false;
             }
         }
 
-        // Form submission handling
+        /* ─────────────────────────────────────────────────
+           Dynamic message helper
+        ───────────────────────────────────────────────── */
+        function showClientMsg(text, type) {
+            // Remove existing dynamic message
+            document.getElementById('dynMsg')?.remove();
+
+            const el = document.createElement('div');
+            el.id = 'dynMsg';
+            el.style.cssText = `
+                padding: 12px 16px; border-radius: 10px; margin-bottom: 16px;
+                font-size: 14px; text-align: center; font-weight: 500;
+            `;
+
+            if (type === 'success') {
+                el.style.background = 'rgba(16,185,129,0.07)';
+                el.style.border = '1px solid rgba(16,185,129,0.25)';
+                el.style.color = '#065f46';
+                el.innerHTML = '<i class="fas fa-check-circle mr-2"></i>' + text;
+            } else {
+                el.style.background = 'rgba(244,63,94,0.07)';
+                el.style.border = '1px solid rgba(244,63,94,0.25)';
+                el.style.color = '#9f1239';
+                el.innerHTML = '<i class="fas fa-exclamation-circle mr-2"></i>' + text;
+            }
+
+            // Insert before info box
+            const infoBox = document.querySelector('.info-box');
+            infoBox.parentNode.insertBefore(el, infoBox);
+        }
+
+        /* ─────────────────────────────────────────────────
+           Form submit — handle errors from server redirect
+        ───────────────────────────────────────────────── */
         document.getElementById('otpForm').addEventListener('submit', function (e) {
-            const verifyBtn = document.getElementById('verifyBtn');
+            const val = hiddenInput.value;
+            if (val.length < 6) {
+                e.preventDefault();
+                boxes.forEach(b => b.classList.add('error-field'));
+                return;
+            }
+
+            // Loading state
             verifyBtn.disabled = true;
-            verifyBtn.textContent = 'Verifying...';
+            document.getElementById('btnContent').innerHTML =
+                '<span class="spinner"></span> Verifying…';
         });
+
+        /* ─────────────────────────────────────────────────
+           If error from server → parse attempt count
+           and update attempt dots
+        ───────────────────────────────────────────────── */
+        const serverError = document.querySelector('.error-message, #serverMsg');
+        if (serverError) {
+            const txt = serverError.textContent || '';
+            // "X attempt(s) remaining."
+            const match = txt.match(/(\d+)\s+attempt/);
+            if (match) {
+                const remaining = parseInt(match[1]);
+                failedAttempts = MAX_ATTEMPTS - remaining;
+                updateAttemptDots(failedAttempts);
+            }
+            // Shake boxes on error
+            if (txt.toLowerCase().includes('invalid') || txt.toLowerCase().includes('otp')) {
+                boxes.forEach(b => b.classList.add('error-field'));
+                setTimeout(() => boxes.forEach(b => b.classList.remove('error-field')), 500);
+            }
+        }
     </script>
 </body>
 

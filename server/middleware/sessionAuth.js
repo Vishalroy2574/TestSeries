@@ -1,6 +1,21 @@
 import jwt from "jsonwebtoken";
 
 /* =====================================================
+   Prevent browser from caching any server responses.
+   This stops the Back-button from showing a cached
+   authenticated page after the user has logged out.
+===================================================== */
+export const noCache = (_req, res, next) => {
+  res.set({
+    "Cache-Control": "no-store, no-cache, must-revalidate, proxy-revalidate",
+    "Pragma": "no-cache",
+    "Expires": "0",
+    "Surrogate-Control": "no-store",
+  });
+  next();
+};
+
+/* =====================================================
    Attach user to request if session or JWT exists
 ===================================================== */
 export const authenticateSession = (req, res, next) => {
@@ -43,7 +58,8 @@ export const requireAuth = (req, res, next) => {
     if (req.path.startsWith("/api")) {
       return res.status(401).json({ message: "Authentication required" });
     }
-    return res.redirect("/login");
+    const returnTo = encodeURIComponent(req.originalUrl || req.url);
+    return res.redirect(`/login?returnTo=${returnTo}`);
   }
   next();
 };
@@ -72,6 +88,7 @@ export const setUserSession = (req, user, token) => {
     _id: user._id,
     name: user.name,
     email: user.email,
+    phone: user.phone || "",
     role: user.role,
     isAdmin: user.isAdmin || user.role === "admin", // ✅ Support both fields
   };

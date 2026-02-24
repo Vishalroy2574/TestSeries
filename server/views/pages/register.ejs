@@ -4,11 +4,138 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Create your free Test Series Hub account to access CA exam preparation tests.">
     <title>
         <%= title %>
     </title>
     <link rel="stylesheet" href="/css/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* ── Validation states ── */
+        .input-wrapper {
+            position: relative;
+        }
+
+        .input-icon {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            font-size: 14px;
+            transition: color 0.2s;
+            pointer-events: none;
+        }
+
+        .input-icon.valid {
+            color: #10b981;
+        }
+
+        .input-icon.invalid {
+            color: #f43f5e;
+        }
+
+        .field-hint {
+            font-size: 11px;
+            margin-top: 5px;
+            padding-left: 2px;
+            min-height: 16px;
+            transition: color 0.2s;
+        }
+
+        .field-hint.ok {
+            color: #10b981;
+        }
+
+        .field-hint.err {
+            color: #f43f5e;
+        }
+
+        /* ── Password strength bar ── */
+        .strength-bar {
+            height: 4px;
+            border-radius: 2px;
+            margin-top: 8px;
+            background: #e2e8f0;
+            overflow: hidden;
+            transition: all 0.3s;
+        }
+
+        .strength-fill {
+            height: 100%;
+            border-radius: 2px;
+            width: 0%;
+            transition: width 0.4s ease, background 0.3s;
+        }
+
+        .strength-label {
+            font-size: 11px;
+            margin-top: 4px;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        /* ── Show/hide password toggle ── */
+        .toggle-pw {
+            position: absolute;
+            right: 14px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: #94a3b8;
+            font-size: 14px;
+            padding: 4px;
+            transition: color 0.2s;
+        }
+
+        .toggle-pw:hover {
+            color: #f43f5e;
+        }
+
+        /* ── Submit states ── */
+        .btn-primary:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-top-color: #fff;
+            border-radius: 50%;
+            animation: spin 0.7s linear infinite;
+            vertical-align: middle;
+            margin-right: 6px;
+        }
+
+        @keyframes spin {
+            to {
+                transform: rotate(360deg);
+            }
+        }
+
+        /* ── Security badge ── */
+        .security-badge {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(16, 185, 129, 0.06);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            font-size: 12px;
+            color: #065f46;
+            margin-bottom: 20px;
+        }
+
+        .security-badge i {
+            color: #10b981;
+            font-size: 14px;
+        }
+    </style>
 </head>
 
 <body>
@@ -25,40 +152,98 @@
                 </p>
             </div>
 
+            <!-- Server-side error -->
             <% if (error) { %>
-                <div class="error-message">
+                <div class="error-message" id="serverError">
                     <i class="fas fa-exclamation-circle mr-2"></i>
                     <%= error %>
                 </div>
                 <% } %>
 
-                    <form action="/api/auth/register" method="POST" class="space-y-6">
-                        <div>
-                            <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                Full Name
-                            </label>
-                            <input type="text" name="name" class="input" placeholder="John Doe" required />
-                        </div>
+                    <!-- Security note -->
+                    <div class="security-badge">
+                        <i class="fas fa-shield-halved"></i>
+                        <span>Your password is hashed & your email will be verified via OTP before activation.</span>
+                    </div>
 
-                        <div>
-                            <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                Email Address
-                            </label>
-                            <input type="email" name="email" class="input" placeholder="you@example.com" required
-                                pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please enter a valid email address" />
-                        </div>
+                    <form action="/api/auth/register" method="POST" class="space-y-6" id="registerForm" novalidate>
+                        <% if (locals.returnTo) { %>
+                            <input type="hidden" name="returnTo" value="<%= returnTo %>">
+                            <% } %>
 
-                        <div>
-                            <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
-                                Create Password
-                            </label>
-                            <input type="password" name="password" class="input" placeholder="Minimum 6 characters"
-                                required minlength="6" />
-                        </div>
+                                <!-- Full Name -->
+                                <div>
+                                    <label
+                                        class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                        Full Name
+                                    </label>
+                                    <div class="input-wrapper">
+                                        <input type="text" name="name" id="nameInput" class="input"
+                                            placeholder="John Doe" required autocomplete="name" />
+                                        <i class="fas input-icon" id="nameIcon"></i>
+                                    </div>
+                                    <p class="field-hint" id="nameHint"></p>
+                                </div>
 
-                        <button type="submit" class="btn-primary w-full py-3">
-                            Claim My Account <i class="fas fa-arrow-right ml-2 text-xs"></i>
-                        </button>
+                                <!-- Email Address -->
+                                <div>
+                                    <label
+                                        class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                        Email Address
+                                    </label>
+                                    <div class="input-wrapper">
+                                        <input type="email" name="email" id="emailInput" class="input"
+                                            placeholder="you@example.com" required autocomplete="email" />
+                                        <i class="fas input-icon" id="emailIcon"></i>
+                                    </div>
+                                    <p class="field-hint" id="emailHint"></p>
+                                </div>
+
+                                <!-- Phone Number -->
+                                <div>
+                                    <label
+                                        class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                        Phone Number (Optional)
+                                    </label>
+                                    <div class="input-wrapper">
+                                        <input type="tel" name="phone" id="phoneInput" class="input"
+                                            placeholder="10-digit number" maxlength="10" pattern="[0-9]{10}"
+                                            autocomplete="off" />
+                                        <i class="fas input-icon" id="phoneIcon"></i>
+                                    </div>
+                                    <p class="field-hint" id="phoneHint">Used for purchase confirmation and PDF access.
+                                    </p>
+                                </div>
+
+                                <!-- Password -->
+                                <div>
+                                    <label
+                                        class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                                        Create Password
+                                    </label>
+                                    <div class="input-wrapper">
+                                        <input type="password" name="password" id="passwordInput" class="input"
+                                            placeholder="Minimum 6 characters" required minlength="6"
+                                            autocomplete="new-password" style="padding-right: 44px;" />
+                                        <button type="button" class="toggle-pw" id="togglePw" tabindex="-1"
+                                            aria-label="Toggle password visibility">
+                                            <i class="fas fa-eye" id="togglePwIcon"></i>
+                                        </button>
+                                    </div>
+
+                                    <!-- Strength bar -->
+                                    <div class="strength-bar">
+                                        <div class="strength-fill" id="strengthFill"></div>
+                                    </div>
+                                    <p class="strength-label" id="strengthLabel" style="color: #94a3b8;"></p>
+                                    <p class="field-hint" id="passwordHint"></p>
+                                </div>
+
+                                <button type="submit" class="btn-primary w-full py-3" id="submitBtn">
+                                    <span id="btnContent">
+                                        Create My Account &nbsp;<i class="fas fa-arrow-right text-xs"></i>
+                                    </span>
+                                </button>
                     </form>
 
                     <p class="mt-8 text-center text-sm text-slate-500">
@@ -69,6 +254,191 @@
                     </p>
         </div>
     </div>
+
+    <script>
+        /* ─────────────────────────────────────────────────
+           Helpers
+        ───────────────────────────────────────────────── */
+        const DISPOSABLE_DOMAINS = new Set([
+            'yopmail.com', 'tempmail.com', 'guerrillamail.com', 'sharklasers.com',
+            'mailinator.com', 'trashmail.com', 'throwaway.email', 'maildrop.cc',
+            'getairmail.com', 'dispostable.com', 'fakeinbox.com', '10minutemail.com',
+            'temp-mail.org', 'disposablemail.com'
+        ]);
+
+        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+        function setIcon(iconEl, valid) {
+            if (valid === null) {
+                iconEl.className = 'fas input-icon';
+                return;
+            }
+            iconEl.className = valid ? 'fas fa-check-circle input-icon valid'
+                : 'fas fa-times-circle input-icon invalid';
+        }
+
+        function setHint(hintEl, msg, isOk) {
+            hintEl.textContent = msg;
+            hintEl.className = 'field-hint ' + (isOk ? 'ok' : (msg ? 'err' : ''));
+        }
+
+        /* ─────────────────────────────────────────────────
+           Name validation
+        ───────────────────────────────────────────────── */
+        const nameInput = document.getElementById('nameInput');
+        const nameIcon = document.getElementById('nameIcon');
+        const nameHint = document.getElementById('nameHint');
+
+        nameInput.addEventListener('input', () => {
+            const val = nameInput.value.trim();
+            if (!val) { setIcon(nameIcon, null); setHint(nameHint, '', false); return; }
+            if (val.length < 2) {
+                setIcon(nameIcon, false);
+                setHint(nameHint, 'Name is too short', false);
+            } else {
+                setIcon(nameIcon, true);
+                setHint(nameHint, 'Looks good!', true);
+            }
+        });
+
+        /* ─────────────────────────────────────────────────
+           Email validation
+        ───────────────────────────────────────────────── */
+        const emailInput = document.getElementById('emailInput');
+        const emailIcon = document.getElementById('emailIcon');
+        const emailHint = document.getElementById('emailHint');
+
+        emailInput.addEventListener('input', validateEmail);
+
+        function validateEmail() {
+            const val = emailInput.value.trim();
+            if (!val) { setIcon(emailIcon, null); setHint(emailHint, '', false); return; }
+
+            if (!emailRegex.test(val)) {
+                setIcon(emailIcon, false);
+                setHint(emailHint, 'Invalid format. Example: user@example.com', false);
+                return;
+            }
+
+            const domain = val.split('@')[1]?.toLowerCase();
+            if (DISPOSABLE_DOMAINS.has(domain)) {
+                setIcon(emailIcon, false);
+                setHint(emailHint, 'Temporary/disposable email addresses are not allowed', false);
+                return;
+            }
+
+            setIcon(emailIcon, true);
+            setHint(emailHint, 'Valid email address', true);
+        }
+
+        /* ─────────────────────────────────────────────────
+           Password strength + validation
+        ───────────────────────────────────────────────── */
+        const passwordInput = document.getElementById('passwordInput');
+        const passwordHint = document.getElementById('passwordHint');
+        const strengthFill = document.getElementById('strengthFill');
+        const strengthLabel = document.getElementById('strengthLabel');
+
+        passwordInput.addEventListener('input', () => {
+            const val = passwordInput.value;
+            if (!val) {
+                strengthFill.style.width = '0%';
+                strengthLabel.textContent = '';
+                setHint(passwordHint, '', false);
+                return;
+            }
+
+            // Calculate strength
+            let score = 0;
+            if (val.length >= 6) score++;
+            if (val.length >= 10) score++;
+            if (/[A-Z]/.test(val)) score++;
+            if (/[0-9]/.test(val)) score++;
+            if (/[^A-Za-z0-9]/.test(val)) score++;
+
+            const levels = [
+                { label: 'Very Weak', color: '#ef4444', width: '15%' },
+                { label: 'Weak', color: '#f97316', width: '30%' },
+                { label: 'Fair', color: '#eab308', width: '55%' },
+                { label: 'Good', color: '#22c55e', width: '78%' },
+                { label: 'Strong', color: '#10b981', width: '100%' },
+            ];
+
+            const level = levels[Math.min(score, 4)];
+            strengthFill.style.width = level.width;
+            strengthFill.style.background = level.color;
+            strengthLabel.textContent = level.label;
+            strengthLabel.style.color = level.color;
+
+            if (val.length < 6) {
+                setHint(passwordHint, 'Password must be at least 6 characters', false);
+            } else {
+                setHint(passwordHint, '', false);
+            }
+        });
+
+        /* ─────────────────────────────────────────────────
+           Show / Hide password toggle
+        ───────────────────────────────────────────────── */
+        document.getElementById('togglePw').addEventListener('click', function () {
+            const icon = document.getElementById('togglePwIcon');
+            if (passwordInput.type === 'password') {
+                passwordInput.type = 'text';
+                icon.className = 'fas fa-eye-slash';
+            } else {
+                passwordInput.type = 'password';
+                icon.className = 'fas fa-eye';
+            }
+        });
+
+        /* ─────────────────────────────────────────────────
+           Form submit – validate + loading state
+        ───────────────────────────────────────────────── */
+        document.getElementById('registerForm').addEventListener('submit', function (e) {
+            const name = nameInput.value.trim();
+            const email = emailInput.value.trim();
+            const password = passwordInput.value;
+
+            // Client-side re-check
+            if (!name || name.length < 2) {
+                e.preventDefault();
+                setIcon(nameIcon, false);
+                setHint(nameHint, 'Please enter your full name', false);
+                nameInput.focus();
+                return;
+            }
+
+            if (!emailRegex.test(email)) {
+                e.preventDefault();
+                setIcon(emailIcon, false);
+                setHint(emailHint, 'Please enter a valid email address', false);
+                emailInput.focus();
+                return;
+            }
+
+            const domain = email.split('@')[1]?.toLowerCase();
+            if (DISPOSABLE_DOMAINS.has(domain)) {
+                e.preventDefault();
+                setIcon(emailIcon, false);
+                setHint(emailHint, 'Temporary/disposable email addresses are not allowed', false);
+                emailInput.focus();
+                return;
+            }
+
+            if (password.length < 6) {
+                e.preventDefault();
+                setHint(passwordHint, 'Password must be at least 6 characters', false);
+                passwordInput.focus();
+                return;
+            }
+
+            // All good → loading state
+            const btn = document.getElementById('submitBtn');
+            const content = document.getElementById('btnContent');
+            btn.disabled = true;
+            content.innerHTML = '<span class="spinner"></span> Sending OTP...';
+        });
+    </script>
 </body>
 
 </html>

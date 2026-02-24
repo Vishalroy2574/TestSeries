@@ -17,9 +17,10 @@ export const createDefaultAdmin = async () => {
 
     await User.create({
       name,
-      email,
+      email: email.toLowerCase().trim(),
       password,
       role: "admin",
+      isVerified: true,   // admin can log in directly — no OTP required
     });
 
     console.log(`Default admin created with email: ${email}`);

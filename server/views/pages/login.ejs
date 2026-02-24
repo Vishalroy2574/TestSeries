@@ -33,27 +33,30 @@
         <% } %>
 
           <form action="/api/auth/login" method="POST" class="space-y-6">
-            <div>
-              <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
-                Email Address
-              </label>
-              <input type="email" name="email" class="input" placeholder="you@example.com" required
-                pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please enter a valid email address" />
-            </div>
+            <% if (locals.returnTo) { %>
+              <input type="hidden" name="returnTo" value="<%= returnTo %>">
+              <% } %>
+                <div>
+                  <label class="mb-2 block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                    Email Address
+                  </label>
+                  <input type="email" name="email" class="input" placeholder="you@example.com" required
+                    pattern="[^\s@]+@[^\s@]+\.[^\s@]+" title="Please enter a valid email address" />
+                </div>
 
-            <div>
-              <div class="flex justify-between items-center mb-2">
-                <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">
-                  Password
-                </label>
-                <!-- Optional: Add forgot password link here in future -->
-              </div>
-              <input type="password" name="password" class="input" placeholder="••••••••" required />
-            </div>
+                <div>
+                  <div class="flex justify-between items-center mb-2">
+                    <label class="block text-xs font-bold text-slate-400 uppercase tracking-widest">
+                      Password
+                    </label>
+                    <!-- Optional: Add forgot password link here in future -->
+                  </div>
+                  <input type="password" name="password" class="input" placeholder="••••••••" required />
+                </div>
 
-            <button type="submit" class="btn-primary w-full py-3">
-              Sign In <i class="fas fa-arrow-right ml-2 text-xs"></i>
-            </button>
+                <button type="submit" class="btn-primary w-full py-3">
+                  Sign In <i class="fas fa-arrow-right ml-2 text-xs"></i>
+                </button>
           </form>
 
           <p class="mt-8 text-center text-sm text-slate-500">

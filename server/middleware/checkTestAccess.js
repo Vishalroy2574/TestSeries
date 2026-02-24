@@ -32,10 +32,11 @@ export const checkTestAccess = async (req, res, next) => {
             return next();
         }
 
-        // If test is PAID, check if user has purchased it
+        // If test is PAID, check if user has purchased it and payment is successful
         const purchase = await Purchase.findOne({
             userId: req.user._id,
             testId: testId,
+            paymentStatus: "paid",
         });
 
         if (!purchase) {

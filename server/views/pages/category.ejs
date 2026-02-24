@@ -105,11 +105,14 @@
                                                             <a href="/tests/<%= test._id %>"
                                                                 class="btn-secondary flex-1">
                                                                 View Test Series
+                                                                <i class="fas fa-check-circle ml-1"
+                                                                    style="color: var(--primary);"></i>
                                                             </a>
                                                             <% } else { %>
-                                                                <a href="javascript:void(0)" class="btn-primary flex-1"
-                                                                    onclick="return confirmPaidAccess('<%= test._id %>', '<%= test.price %>', <%= user ? 'true' : 'false' %>, event)">
+                                                                <a href="/tests/<%= test._id %>/purchase"
+                                                                    class="btn-primary flex-1">
                                                                     Unlock Content
+                                                                    <i class="fas fa-unlock ml-1"></i>
                                                                 </a>
                                                                 <% } %>
                                                     </div>
@@ -131,93 +134,8 @@
             </div>
         </main>
 
-        <script>
-            async function purchaseTestAJAX(testId, price, buttonEl) {
-                if (!confirm(`Purchase this test for ₹${price}?`)) {
-                    return;
-                }
-
-                try {
-                    const originalText = buttonEl.innerText;
-                    buttonEl.innerText = 'Unlocking...';
-                    buttonEl.disabled = true;
-
-                    const res = await fetch(`/api/purchases/${testId}`, {
-                        method: 'POST',
-                        credentials: 'include',
-                    });
-
-                    const data = await res.json();
-
-                    if (!res.ok) {
-                        throw new Error(data.message || 'Purchase failed');
-                    }
-
-                    // Success: Update UI without refresh
-                    buttonEl.innerText = 'View Test Series';
-                    buttonEl.classList.remove('btn-primary');
-                    buttonEl.classList.add('btn-secondary'); // Or similar style
-                    buttonEl.onclick = () => location.href = `/tests/${testId}`;
-                    buttonEl.disabled = false;
-
-                    alert('Test purchased successfully! You can now view the content.');
-                } catch (err) {
-                    console.error(err);
-                    const msg = err.message.toLowerCase();
-                    if (msg.includes('already purchased') || msg.includes('already exists')) {
-                        // Success case: It's already yours!
-                        buttonEl.innerText = 'View Test Series';
-                        buttonEl.classList.remove('btn-primary');
-                        buttonEl.classList.add('btn-secondary');
-                        buttonEl.onclick = () => location.href = `/tests/${testId}`;
-                        buttonEl.disabled = false;
-                        return;
-                    }
-                    alert('Error: ' + err.message);
-                    buttonEl.innerText = 'Unlock Content';
-                    buttonEl.disabled = false;
-                }
-            }
-
-            async function refreshPageState() {
-                try {
-                    const res = await fetch('/api/purchases', { credentials: 'include' });
-                    if (!res.ok) return;
-                    const purchases = await res.json();
-                    const purchasedIds = purchases.map(p => (p.testId._id || p.testId).toString());
-
-                    // Update all buttons on the page
-                    document.querySelectorAll('[onclick*="confirmPaidAccess"]').forEach(btn => {
-                        // Extract testId from onclick attribute
-                        const match = btn.getAttribute('onclick').match(/'([^']+)'/);
-                        if (match && purchasedIds.includes(match[1])) {
-                            btn.innerText = 'View Test Series';
-                            btn.className = 'btn-secondary flex-1';
-                            btn.onclick = () => location.href = `/tests/${match[1]}`;
-                            btn.removeAttribute('onclick'); // Important to stop the old handler
-                        }
-                    });
-
-                    // Also update hero message if possible
-                    // (Assuming we can find the user name via some other means or just skip for now)
-                } catch (err) {
-                    console.error('Failed to refresh page state:', err);
-                }
-            }
-            window.refreshPageState = refreshPageState;
-
-            function confirmPaidAccess(testId, price, isAuthenticated, event) {
-                const buttonEl = event.currentTarget;
-                if (!isAuthenticated) {
-                    openAuthModal('login', () => purchaseTestAJAX(testId, price, buttonEl));
-                    return false;
-                }
-                purchaseTestAJAX(testId, price, buttonEl);
-                return false;
-            }
-        </script>
-
         <%- include('../partials/footer') %>
+
 </body>
 
 </html>

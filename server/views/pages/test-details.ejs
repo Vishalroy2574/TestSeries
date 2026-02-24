@@ -47,8 +47,8 @@
                             <div class="text-3xl font-extrabold text-primary mb-4">₹<%= test.price || 0 %>
                             </div>
                             <% if (!hasPurchased) { %>
-                                <button onclick="document.getElementById('purchase-btn').click()"
-                                    class="btn-primary w-full">Unlock Now</button>
+                                <a href="/tests/<%= test._id %>/purchase" class="btn-primary w-full"
+                                    style="display:block;text-align:center;text-decoration:none;">Unlock Now</a>
                                 <% } else { %>
                                     <div class="text-success font-bold text-sm">✓ Purchased</div>
                                     <% } %>
@@ -106,9 +106,10 @@
                                     This test series is part of our premium catalog. Purchase it once to get lifetime
                                     access to the PDF and practice materials.
                                 </p>
-                                <button id="purchase-btn" class="btn-primary px-10">
+                                <a href="/tests/<%= test._id %>/purchase" class="btn-primary px-10"
+                                    style="text-decoration:none;display:inline-block;text-align:center;">
                                     Unlock Now for ₹<%= test.price %>
-                                </button>
+                                </a>
                                 <p class="mt-6 text-[10px] text-slate-400 uppercase tracking-widest">Secure Payment
                                     Processing</p>
                             </div>
@@ -139,45 +140,7 @@
 
         <%- include('../partials/footer') %>
 
-            <% if (test.type==='PAID' && !hasPurchased) { %>
-                <script>
-                    document.getElementById('purchase-btn').addEventListener('click', async () => {
-                        const isAuthenticated = <%= !!user %>;
 
-                        if (!isAuthenticated) {
-                            openAuthModal('login');
-                            return;
-                        }
-
-                        if (!confirm('Purchase this test for ₹<%= test.price %>?')) {
-                            return;
-                        }
-
-                        try {
-                            const res = await fetch('/api/purchases/<%= test._id %>', {
-                                method: 'POST',
-                                credentials: 'include',
-                            });
-
-                            const data = await res.json();
-
-                            if (!res.ok) {
-                                throw new Error(data.message || 'Purchase failed');
-                            }
-
-                            alert('Test purchased successfully!');
-                            location.reload();
-                        } catch (err) {
-                            console.error(err);
-                            if (err.message.includes('already purchased')) {
-                                location.reload();
-                                return;
-                            }
-                            alert('Error: ' + err.message);
-                        }
-                    });
-                </script>
-                <% } %>
 </body>
 
 </html>

@@ -3,212 +3,374 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Create reusable transporter
-const createTransporter = async () => {
-  // Check if using real email service or test service
-  const useTestEmail = !process.env.EMAIL_USER || process.env.EMAIL_USER === 'your-email@gmail.com';
+/* ══════════════════════════════════════════════════════════
+   TRANSPORTER
+   Always uses real Gmail SMTP — no Ethereal fallback.
+   Requires EMAIL_USER + EMAIL_PASSWORD in .env
+════════════════════════════════════════════════════════════ */
+const createTransporter = () => {
+  const user = process.env.EMAIL_USER;
+  const pass = process.env.EMAIL_PASSWORD;
 
-  if (useTestEmail) {
-    // Use Ethereal for testing (no real emails sent)
-    console.log('⚠️  Using Ethereal test email service (emails won\'t be delivered)');
-    const testAccount = await nodemailer.createTestAccount();
-    return nodemailer.createTransport({
-      host: 'smtp.ethereal.email',
-      port: 587,
-      secure: false,
-      auth: {
-        user: testAccount.user,
-        pass: testAccount.pass,
-      },
-    });
+  if (!user || !pass) {
+    throw new Error(
+      '❌ Email credentials missing. Set EMAIL_USER and EMAIL_PASSWORD in .env\n' +
+      '   Use a Gmail App Password (16 chars) — NOT your regular Gmail password.\n' +
+      '   Guide: https://support.google.com/accounts/answer/185833'
+    );
   }
 
-  // Use Gmail for production
   return nodemailer.createTransport({
     service: 'gmail',
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASSWORD,
-    },
+    auth: { user, pass },
   });
 };
 
-// Generate OTP email HTML template
-const generateOTPEmailHTML = (otp, userName) => {
-  return `
-    <!DOCTYPE html>
-    <html lang="en">
-    <head>
-      <meta charset="UTF-8">
-      <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <title>Email Verification</title>
-      <style>
-        body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-          line-height: 1.6;
-          color: #333;
-          max-width: 600px;
-          margin: 0 auto;
-          padding: 20px;
-          background-color: #f4f4f4;
-        }
-        .container {
-          background-color: #ffffff;
-          border-radius: 10px;
-          padding: 40px;
-          box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 30px;
-        }
-        .header h1 {
-          color: #f43f5e;
-          margin: 0;
-          font-size: 28px;
-        }
-        .otp-box {
-          background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%);
-          color: white;
-          font-size: 36px;
-          font-weight: bold;
-          letter-spacing: 8px;
-          text-align: center;
-          padding: 20px;
-          border-radius: 8px;
-          margin: 30px 0;
-        }
-        .content {
-          color: #555;
-          font-size: 16px;
-        }
-        .content p {
-          margin: 15px 0;
-        }
-        .footer {
-          margin-top: 30px;
-          padding-top: 20px;
-          border-top: 1px solid #eee;
-          text-align: center;
-          color: #999;
-          font-size: 14px;
-        }
-        .warning {
-          background-color: #fff3cd;
-          border-left: 4px solid #ffc107;
-          padding: 15px;
-          margin: 20px 0;
-          border-radius: 4px;
-        }
-      </style>
-    </head>
-    <body>
-      <div class="container">
-        <div class="header">
-          <h1>Test Series Hub</h1>
-          <p style="color: #666; margin-top: 10px;">Email Verification</p>
-        </div>
-        
-        <div class="content">
-          <p>Hello ${userName},</p>
-          <p>Thank you for registering with Test Series Hub! To complete your registration, please verify your email address using the OTP below:</p>
-          
-          <div class="otp-box">
-            ${otp}
+/* ══════════════════════════════════════════════════════════
+   OTP EMAIL TEMPLATE
+════════════════════════════════════════════════════════════ */
+const otpEmailHTML = (otp, userName) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Email Verification – Test Series Hub</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #f1f5f9;
+      padding: 32px 16px;
+      color: #334155;
+    }
+    .wrapper { max-width: 560px; margin: 0 auto; }
+    .card {
+      background: #ffffff;
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    }
+    .header {
+      background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+      padding: 36px 40px 32px;
+      text-align: center;
+    }
+    .header-logo { font-size: 22px; font-weight: 800; color: #fff; letter-spacing: -0.5px; }
+    .header-sub  { color: rgba(255,255,255,0.8); font-size: 13px; margin-top: 6px; }
+    .body        { padding: 36px 40px; }
+    .greeting    { font-size: 17px; font-weight: 600; margin-bottom: 12px; }
+    .intro       { color: #64748b; font-size: 14px; line-height: 1.7; margin-bottom: 28px; }
+    .otp-label   {
+      text-align: center; font-size: 11px; font-weight: 700; color: #94a3b8;
+      letter-spacing: 0.12em; text-transform: uppercase; margin-bottom: 10px;
+    }
+    .otp-code {
+      background: #fef2f4;
+      border: 2px dashed #fda4af;
+      border-radius: 12px;
+      padding: 20px 16px;
+      text-align: center;
+      font-size: 42px;
+      font-weight: 900;
+      letter-spacing: 14px;
+      color: #f43f5e;
+      font-family: 'Courier New', Courier, monospace;
+    }
+    .warning {
+      display: flex; align-items: flex-start; gap: 10px;
+      background: #fffbeb;
+      border-left: 4px solid #fbbf24;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin: 24px 0;
+      font-size: 13px;
+      color: #92400e;
+      line-height: 1.5;
+    }
+    .warning-icon { font-size: 16px; flex-shrink: 0; margin-top: 1px; }
+    .divider { border: none; border-top: 1px solid #f1f5f9; margin: 28px 0; }
+    .footer  { text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.8; }
+    .footer a { color: #f43f5e; text-decoration: none; }
+    .meta { padding: 20px 40px; background: #f8fafc; text-align: center; }
+    .meta-text { font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <div class="header-logo">📚 Test Series Hub</div>
+        <div class="header-sub">Email Verification</div>
+      </div>
+      <div class="body">
+        <p class="greeting">Hello, ${userName}! 👋</p>
+        <p class="intro">
+          Thanks for signing up with <strong>Test Series Hub</strong>. To activate your account,
+          please use the One-Time Password below. It is <strong>valid for 10 minutes</strong>
+          and can only be used once.
+        </p>
+
+        <p class="otp-label">Your Verification Code</p>
+        <div class="otp-code">${otp}</div>
+
+        <div class="warning">
+          <span class="warning-icon">⚠️</span>
+          <div>
+            <strong>Never share this code.</strong> Test Series Hub will never ask for
+            your OTP via phone, email, or chat. If you did not request this, ignore this email —
+            your account remains safe.
           </div>
-          
-          <div class="warning">
-            <strong>⚠️ Important:</strong> This OTP will expire in <strong>10 minutes</strong>. Do not share this code with anyone.
-          </div>
-          
-          <p>If you didn't request this verification, please ignore this email.</p>
         </div>
-        
+
+        <hr class="divider">
         <div class="footer">
-          <p>© 2026 Test Series Hub. All rights reserved.</p>
-          <p>This is an automated email. Please do not reply.</p>
+          <p>© ${new Date().getFullYear()} Test Series Hub. All rights reserved.</p>
+          <p>This is an automated email — please do not reply.</p>
         </div>
       </div>
-    </body>
-    </html>
-  `;
+      <div class="meta">
+        <p class="meta-text">
+          Sent to the email address used during registration.
+          <br>Questions? <a href="mailto:${process.env.EMAIL_USER}">Contact Support</a>
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+/* ══════════════════════════════════════════════════════════
+   WELCOME EMAIL TEMPLATE
+════════════════════════════════════════════════════════════ */
+const welcomeEmailHTML = (userName) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Welcome – Test Series Hub</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+      background: #f1f5f9; padding: 32px 16px; color: #334155;
+    }
+    .wrapper { max-width: 560px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%); padding: 40px; text-align: center; }
+    .check-circle {
+      width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 50%;
+      display: inline-flex; align-items: center; justify-content: center;
+      font-size: 30px; margin-bottom: 16px;
+    }
+    .header h1 { color: #fff; font-size: 24px; font-weight: 800; }
+    .header p  { color: rgba(255,255,255,0.85); font-size: 13px; margin-top: 6px; }
+    .body { padding: 36px 40px; }
+    .body p { font-size: 14px; color: #64748b; line-height: 1.8; margin-bottom: 16px; }
+    .highlight { color: #f43f5e; font-weight: 700; }
+    .cta-wrap { text-align: center; margin: 28px 0; }
+    .cta {
+      display: inline-block;
+      background: linear-gradient(135deg, #f43f5e 0%, #be123c 100%);
+      color: #fff !important; text-decoration: none;
+      padding: 14px 36px; border-radius: 50px; font-weight: 700; font-size: 14px;
+      box-shadow: 0 4px 14px rgba(244,63,94,0.4);
+    }
+    .divider { border: none; border-top: 1px solid #f1f5f9; margin: 24px 0; }
+    .footer { text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.8; padding-bottom: 8px; }
+    .footer a { color: #f43f5e; text-decoration: none; }
+    .meta { padding: 20px 40px; background: #f8fafc; text-align: center; }
+    .meta-text { font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <div class="check-circle">✅</div>
+        <h1>Account Verified!</h1>
+        <p>Your account has been successfully registered.</p>
+      </div>
+      <div class="body">
+        <p>Hi <strong>${userName}</strong>,</p>
+        <p>
+          Great news — your email has been verified and your
+          <span class="highlight">Test Series Hub</span> account is now fully active!
+          You can explore our complete CA exam test series library.
+        </p>
+        <p>
+          Whether you're preparing for <strong>CA Foundation</strong>,
+          <strong>CA Inter</strong>, or <strong>CA Final</strong>, we're here to help you succeed!
+        </p>
+        <div class="cta-wrap">
+          <a href="${process.env.CLIENT_URL || 'http://localhost:5000'}" class="cta">
+            🚀 &nbsp;Explore Test Series
+          </a>
+        </div>
+        <hr class="divider">
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} Test Series Hub. All rights reserved.</p>
+        </div>
+      </div>
+      <div class="meta">
+        <p class="meta-text">You're receiving this because you registered at Test Series Hub.</p>
+      </div>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+/* ══════════════════════════════════════════════════════════
+   EXPORTED FUNCTIONS
+════════════════════════════════════════════════════════════ */
+
+/**
+ * Send OTP verification email via real Gmail SMTP.
+ */
+export const sendOTPEmail = async (email, otp, userName) => {
+  const transporter = createTransporter();
+
+  const from =
+    process.env.EMAIL_FROM ||
+    `"Test Series Hub" <${process.env.EMAIL_USER}>`;
+
+  const info = await transporter.sendMail({
+    from,
+    to: email,
+    subject: '🔐 Your OTP – Verify Your Test Series Hub Account',
+    html: otpEmailHTML(otp, userName),
+    text: `Hello ${userName},\n\nYour OTP for Test Series Hub is: ${otp}\n\nValid for 10 minutes. Do not share it with anyone.\n\n— Test Series Hub`,
+  });
+
+  console.log(`✅ OTP email sent to ${email} [${info.messageId}]`);
+  return { success: true, messageId: info.messageId };
 };
 
-// Send OTP email
-export const sendOTPEmail = async (email, otp, userName) => {
+/**
+ * Send welcome email after successful OTP verification (non-critical).
+ */
+export const sendWelcomeEmail = async (email, userName) => {
   try {
-    const transporter = await createTransporter();
+    const transporter = createTransporter();
+    const from =
+      process.env.EMAIL_FROM ||
+      `"Test Series Hub" <${process.env.EMAIL_USER}>`;
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Test Series Hub" <${process.env.EMAIL_USER || 'noreply@testserieshub.com'}>`,
+    await transporter.sendMail({
+      from,
       to: email,
-      subject: 'Verify Your Email - Test Series Hub',
-      html: generateOTPEmailHTML(otp, userName),
-      text: `Hello ${userName},\n\nYour OTP for email verification is: ${otp}\n\nThis OTP will expire in 10 minutes.\n\nIf you didn't request this, please ignore this email.\n\nThank you,\nTest Series Hub`,
-    };
+      subject: '🎉 Welcome to Test Series Hub – Registration Successful!',
+      html: welcomeEmailHTML(userName),
+      text: `Hello ${userName},\n\nYour account is now active. Log in and start your CA exam preparation!\n\n— Test Series Hub`,
+    });
 
-    const info = await transporter.sendMail(mailOptions);
-    console.log('✅ OTP email sent successfully:', info.messageId);
-
-    // If using test email, log preview URL
-    const previewUrl = nodemailer.getTestMessageUrl(info);
-    if (previewUrl) {
-      console.log('📧 Preview email at:', previewUrl);
-      console.log('⚠️  Note: This is a test email. Copy the OTP from the preview URL above.');
-    }
-
-    return { success: true, messageId: info.messageId, previewUrl };
-  } catch (error) {
-    console.error('❌ Error sending OTP email:', error);
-    throw new Error('Failed to send verification email. Please try again later.');
+    console.log(`✅ Welcome email sent to ${email}`);
+  } catch (err) {
+    console.error(`❌ Welcome email failed (non-critical):`, err.message);
   }
 };
 
-// Send welcome email after successful verification (optional)
-export const sendWelcomeEmail = async (email, userName) => {
+/* ══════════════════════════════════════════════════════════
+   PURCHASE CONFIRMATION + PDF LINK EMAIL
+════════════════════════════════════════════════════════════ */
+export const sendPurchaseConfirmationEmail = async ({
+  email,
+  userName,
+  testTitle,
+  testCategory,
+  amountPaid,
+  pdfViewUrl,
+  razorpayPaymentId,
+}) => {
   try {
-    const transporter = await createTransporter();
+    const transporter = createTransporter();
+    const from =
+      process.env.EMAIL_FROM ||
+      `"Test Series Hub" <${process.env.EMAIL_USER}>`;
 
-    const mailOptions = {
-      from: process.env.EMAIL_FROM || `"Test Series Hub" <${process.env.EMAIL_USER}>`,
+    const html = `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <title>Purchase Confirmed – Test Series Hub</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif; background: #f1f5f9; padding: 32px 16px; color: #334155; }
+    .wrapper { max-width: 560px; margin: 0 auto; }
+    .card { background: #fff; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 24px rgba(0,0,0,0.08); }
+    .header { background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%); padding: 36px 40px; text-align: center; }
+    .check { width: 64px; height: 64px; background: rgba(255,255,255,0.2); border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 28px; margin-bottom: 16px; }
+    .header h1 { color: #fff; font-size: 22px; font-weight: 800; }
+    .header p { color: rgba(255,255,255,0.85); font-size: 13px; margin-top: 6px; }
+    .body { padding: 32px 40px; }
+    .body p { font-size: 14px; color: #64748b; line-height: 1.8; margin-bottom: 14px; }
+    .receipt { background: #f8fafc; border-radius: 12px; padding: 20px; margin: 20px 0; }
+    .receipt-row { display: flex; justify-content: space-between; padding: 8px 0; border-bottom: 1px solid #f1f5f9; font-size: 13px; }
+    .receipt-row:last-child { border-bottom: none; }
+    .receipt-row .lbl { color: #94a3b8; }
+    .receipt-row .val { font-weight: 700; color: #1e293b; }
+    .cta-wrap { text-align: center; margin: 28px 0 8px; }
+    .cta { display: inline-block; background: linear-gradient(135deg,#7c3aed,#5b21b6); color: #fff !important; text-decoration: none; padding: 14px 36px; border-radius: 50px; font-weight: 700; font-size: 14px; box-shadow: 0 4px 14px rgba(124,58,237,0.4); }
+    .note { text-align: center; font-size: 11px; color: #94a3b8; margin-top: 10px; }
+    .divider { border: none; border-top: 1px solid #f1f5f9; margin: 24px 0; }
+    .footer { text-align: center; font-size: 12px; color: #94a3b8; line-height: 1.8; padding-bottom: 8px; }
+    .meta { padding: 18px 40px; background: #f8fafc; text-align: center; font-size: 12px; color: #94a3b8; }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <div class="card">
+      <div class="header">
+        <div class="check">✅</div>
+        <h1>Payment Successful!</h1>
+        <p>Your purchase has been confirmed.</p>
+      </div>
+      <div class="body">
+        <p>Hi <strong>${userName}</strong>,</p>
+        <p>Thank you for your purchase! Your access to <strong>${testTitle}</strong> has been unlocked. You can view your test PDF anytime using the button below.</p>
+
+        <div class="receipt">
+          <div class="receipt-row"><span class="lbl">Product</span><span class="val">${testTitle}</span></div>
+          <div class="receipt-row"><span class="lbl">Category</span><span class="val">${testCategory}</span></div>
+          <div class="receipt-row"><span class="lbl">Amount Paid</span><span class="val">₹${amountPaid}</span></div>
+          <div class="receipt-row"><span class="lbl">Payment ID</span><span class="val" style="font-size:11px;">${razorpayPaymentId}</span></div>
+          <div class="receipt-row"><span class="lbl">Access</span><span class="val" style="color:#7c3aed;">Lifetime ♾️</span></div>
+        </div>
+
+        <div class="cta-wrap">
+          <a href="${pdfViewUrl}" class="cta">📄 &nbsp; View Your Test PDF</a>
+        </div>
+        <p class="note">Link opens directly in your browser. No additional login required if you are already signed in.</p>
+
+        <hr class="divider">
+        <div class="footer">
+          <p>© ${new Date().getFullYear()} Test Series Hub. All rights reserved.</p>
+          <p>Keep this email as your payment receipt.</p>
+        </div>
+      </div>
+      <div class="meta">Questions? Reply to this email and we'll help you.</div>
+    </div>
+  </div>
+</body>
+</html>`;
+
+    await transporter.sendMail({
+      from,
       to: email,
-      subject: 'Welcome to Test Series Hub!',
-      html: `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; }
-            .container { max-width: 600px; margin: 0 auto; padding: 20px; }
-            .header { background: linear-gradient(135deg, #f43f5e 0%, #e11d48 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }
-            .content { background: #fff; padding: 30px; border-radius: 0 0 10px 10px; }
-            .button { display: inline-block; background: #f43f5e; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }
-          </style>
-        </head>
-        <body>
-          <div class="container">
-            <div class="header">
-              <h1>Welcome to Test Series Hub!</h1>
-            </div>
-            <div class="content">
-              <p>Hello ${userName},</p>
-              <p>Your email has been successfully verified! You're now ready to explore our test series and start your learning journey.</p>
-              <p style="text-align: center;">
-                <a href="${process.env.CLIENT_URL || 'http://localhost:5000'}" class="button">Get Started</a>
-              </p>
-              <p>If you have any questions, feel free to reach out to our support team.</p>
-              <p>Happy learning!<br>The Test Series Hub Team</p>
-            </div>
-          </div>
-        </body>
-        </html>
-      `,
-    };
+      subject: `✅ Payment Confirmed – You now have access to ${testTitle}`,
+      html,
+      text: `Hi ${userName},\n\nYour payment of ₹${amountPaid} for "${testTitle}" was successful.\n\nPayment ID: ${razorpayPaymentId}\n\nView your test PDF: ${pdfViewUrl}\n\n— Test Series Hub`,
+    });
 
-    await transporter.sendMail(mailOptions);
-    console.log('Welcome email sent successfully');
-  } catch (error) {
-    console.error('Error sending welcome email:', error);
-    // Don't throw error for welcome email - it's not critical
+    console.log(`✅ Purchase confirmation email sent to ${email}`);
+    return true;
+  } catch (err) {
+    console.error('❌ Purchase confirmation email failed:', err.message);
+    return false;
   }
 };

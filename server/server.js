@@ -1,10 +1,11 @@
 import express from "express";
 import dotenv from "dotenv";
-import mongoose from "mongoose";
 import session from "express-session";
+import MongoStore from "connect-mongo";
 import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
+import dns from "dns";
 
 import testRoutes from "./routes/testRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
@@ -13,21 +14,20 @@ import viewRoutes from "./routes/viewRoutes.js";
 import pdfRoutes from "./routes/pdfRoutes.js";
 import purchaseRoutes from "./routes/purchaseRoutes.js";
 
-import { authenticateSession, requireAuth, requireAdmin } from "./middleware/sessionAuth.js";
-import Test from "./models/Test.js";
+import { authenticateSession, noCache } from "./middleware/sessionAuth.js";
+import { connectDB } from "./config/db.js";
 
-dotenv.config();
-
-const app = express();
-
-/* ================= PATH CONFIG ================= */
+/* ================= PATH CONFIG + ENV ================= */
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-/* ================= DATABASE ================= */
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch(err => console.error("Mongo Error:", err));
+// Always load .env from the server directory, regardless of where Node is started
+dotenv.config({ path: path.join(__dirname, ".env") });
+
+const app = express();
+
+// Prefer IPv4 first (helps avoid SRV DNS issues on some networks)
+dns.setDefaultResultOrder("ipv4first");
 
 /* ================= MIDDLEWARE ================= */
 app.use(express.json());
@@ -38,11 +38,23 @@ app.use(session({
   secret: process.env.SESSION_SECRET || "supersecret",
   resave: false,
   saveUninitialized: false,
+  // Persist sessions in MongoDB so they survive server restarts & work
+  // correctly across multiple processes. connect-mongo was already installed.
+  store: MongoStore.create({
+    mongoUrl: process.env.MONGO_URI || "mongodb://127.0.0.1:27017/examportal",
+    collectionName: "sessions",
+    ttl: 24 * 60 * 60,          // session TTL: 24 hours
+    autoRemove: "native",       // let MongoDB TTL index clean up expired sessions
+  }),
   cookie: {
     httpOnly: true,
-    secure: false,   // change to true in production (HTTPS)
+    secure: false,              // set to true in production (HTTPS)
+    maxAge: 24 * 60 * 60 * 1000, // 24 hours
   }
 }));
+
+/* 🚫 Disable browser caching — prevents Back-button showing stale auth pages */
+app.use(noCache);
 
 /* 🔥 IMPORTANT: attach user to req BEFORE routes */
 app.use(authenticateSession);
@@ -73,6 +85,25 @@ app.use("/", viewRoutes);
 /* ================= SERVER ================= */
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+(async () => {
+  // Start DB connection, but don't crash server if it fails (e.g. SRV DNS blocked).
+  connectDB({ retry: true }).catch(() => { });
+
+  const startListening = (port) => {
+    const server = app.listen(port, () => {
+      console.log(`Server running on http://localhost:${port}`);
+    });
+
+    server.on("error", (err) => {
+      if (err?.code === "EADDRINUSE") {
+        console.error(`Port ${port} is in use. Trying ${Number(port) + 1}...`);
+        setTimeout(() => startListening(Number(port) + 1), 250);
+        return;
+      }
+      console.error("Server listen error:", err);
+      process.exit(1);
+    });
+  };
+
+  startListening(Number(PORT));
+})();
