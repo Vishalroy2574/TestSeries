@@ -5,9 +5,9 @@ client/node_modules/
 server/node_modules/
 
 # environment variables (IMPORTANT)
-.env
-server/.env
-client/.env
+# .env
+# server/.env
+# client/.env
 
 # build output
 dist/

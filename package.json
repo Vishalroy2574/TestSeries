@@ -8,6 +8,7 @@
     "install": "npm install --prefix server"
   },
   "dependencies": {
+    "mongodb": "^7.1.0",
     "nodemon": "^3.1.14",
     "razorpay": "^2.9.6"
   }
