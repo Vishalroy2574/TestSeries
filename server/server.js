@@ -6,6 +6,10 @@ import cookieParser from "cookie-parser";
 import path from "path";
 import { fileURLToPath } from "url";
 import dns from "dns";
+import helmet from "helmet";
+import mongoSanitize from "express-mongo-sanitize";
+import hpp from "hpp";
+import rateLimit from "express-rate-limit";
 
 import testRoutes from "./routes/testRoutes.js";
 import uploadRoutes from "./routes/uploadRoutes.js";
@@ -29,7 +33,38 @@ const app = express();
 // Prefer IPv4 first (helps avoid SRV DNS issues on some networks)
 dns.setDefaultResultOrder("ipv4first");
 
-/* ================= MIDDLEWARE ================= */
+// Trust first proxy (Render, Heroku, etc.)
+app.set("trust proxy", 1);
+
+/* ================= SECURITY MIDDLEWARE ================= */
+// Use Helmet to set secure HTTP headers
+app.use(helmet({
+  contentSecurityPolicy: false, // Disable CSP if it interferes with your EJS/scripts (can be tuned later)
+}));
+
+// Global Rate Limiting: 100 requests per 15 minutes
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: "Too many requests from this IP, please try again in 15 minutes."
+});
+
+// Auth-specific Rate Limiting: 20 attempts per hour
+const authLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 20,
+  message: "Too many login/registration attempts. Please try again in an hour."
+});
+
+// Prevent NoSQL injection
+app.use(mongoSanitize());
+
+// Prevent HTTP Parameter Pollution
+app.use(hpp());
+
+/* ================= BASIC MIDDLEWARE ================= */
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -48,7 +83,8 @@ app.use(session({
   }),
   cookie: {
     httpOnly: true,
-    secure: false,              // set to true in production (HTTPS)
+    secure: process.env.NODE_ENV === "production", // Enable secure cookies in production
+    sameSite: "lax",
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
   }
 }));
@@ -69,6 +105,11 @@ app.set("views", path.join(__dirname, "views"));
 app.use(express.static(path.join(__dirname, "public")));
 
 /* ================= ROUTES ================= */
+
+// Apply Rate Limiting
+app.use("/api/", apiLimiter);
+app.use("/api/auth/login", authLimiter);
+app.use("/api/auth/register", authLimiter);
 
 // API Routes
 app.use("/api/tests", testRoutes);
